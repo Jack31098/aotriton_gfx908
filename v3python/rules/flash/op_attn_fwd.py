@@ -12,7 +12,9 @@ from ._common import (
     ConditionalDeferredElseTensor as CDETensor,
 )
 
-AOTRITON_FLASH_BLOCK_DMODEL = os.getenv('AOTRITON_FLASH_BLOCK_DMODEL', default='16, 32, 48, 64, 80, 96, 128, 160, 192, 224, 256, 512')
+# Narrow default head dims to speed up initial tuning; can be overridden by env
+# default='16, 32, 48, 64, 80, 96, 128, 160, 192, 224, 256, 512'
+AOTRITON_FLASH_BLOCK_DMODEL = os.getenv('AOTRITON_FLASH_BLOCK_DMODEL', default='64, 128')
 AOTRITON_FLASH_BLOCK_DMODEL = [int(d) for d in AOTRITON_FLASH_BLOCK_DMODEL.split(',')]
 
 _IF_DROPOUT = lambda elsechoice : [CC('ENABLE_DROPOUT', False, 0, elsechoice)]

@@ -75,14 +75,24 @@ class bwd_kernel_dq(FlashBwdKernel):
     def gen_autotune_configs(f : 'Functional'):
         arch = f.arch
         dtype = check_value(f, ['Q'])
+        HEAD_DIM = check_value(f, ['BLOCK_DMODEL'])
         ret = []
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'
         RDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'RDNA'
-        # TODO: right sizes for fp32?
-        BLOCK_SIZES = [16, 32, 64] if dtype != '*fp32:16' else [16, 32]
-        WAVES_PER_EU = [1, 2, 3, 4]
-        NUM_WARPS = [2, 4]
-        NUM_STAGES = [1]
+        # Narrow search space for gfx908 to speed up bring-up
+        if arch == 'gfx908':
+            if HEAD_DIM not in [64, 128]:
+                return
+            BLOCK_SIZES = [32, 64]
+            WAVES_PER_EU = [2]
+            NUM_WARPS = [4]
+            NUM_STAGES = [1]
+        else:
+            # TODO: right sizes for fp32?
+            BLOCK_SIZES = [16, 32, 64] if dtype != '*fp32:16' else [16, 32]
+            WAVES_PER_EU = [1, 2, 3, 4]
+            NUM_WARPS = [2, 4]
+            NUM_STAGES = [1]
         for M, N, waves, warps, stages in itertools.product(BLOCK_SIZES,
                                                             BLOCK_SIZES,
                                                             WAVES_PER_EU,

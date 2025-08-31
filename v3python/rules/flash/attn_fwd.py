@@ -81,8 +81,22 @@ class attn_fwd(FlashKernel):
         ret = []
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'
         RDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'RDNA'
-        if CDNA:
+        # Fast path: drastically narrow gfx908 search space to speed up initial bring-up
+        if arch == 'gfx908':
+            # Only head dims typical for 0.6B-sized models (common: 64, sometimes 128)
+            if HEAD_DIM not in [64, 128]:
+                return
+            BLOCK_SIZES = [(64, 64), (64, 32)]
+            WAVES_PER_EU = [2]
+            NUM_WARPS = [4]
+            PRE_LOAD_V = [False]
+            NUM_STAGES = [1]
+        elif CDNA:
             BLOCK_SIZES = [(32, 16), (128, 64), (64, 64), (64, 32), (128, 128)]
+            WAVES_PER_EU = [1, 2, 3, 4]
+            NUM_WARPS = [2, 4]
+            PRE_LOAD_V = PRE_LOAD_OPTIONS
+            NUM_STAGES = [1]
         elif RDNA:
             BLOCK_SIZES = [(64, 32), (32, 32), (32, 16)]
             if '*fp32' not in dtype:
@@ -90,10 +104,10 @@ class attn_fwd(FlashKernel):
             else:
                 # M //= 2 will effectively yield (16,32), (16,16)
                 pass
-        WAVES_PER_EU = [1, 2, 3, 4]
-        NUM_WARPS = [2, 4]
-        PRE_LOAD_V = PRE_LOAD_OPTIONS
-        NUM_STAGES = [1]
+            WAVES_PER_EU = [1, 2, 3, 4]
+            NUM_WARPS = [2, 4]
+            PRE_LOAD_V = PRE_LOAD_OPTIONS
+            NUM_STAGES = [1]
         for (M, N), waves, warps, stages, pre in itertools.product(BLOCK_SIZES,
                                                                    WAVES_PER_EU,
                                                                    NUM_WARPS,
