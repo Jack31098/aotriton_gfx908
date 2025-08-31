@@ -1,0 +1,9 @@
+filelock
+iniconfig
+packaging
+pluggy
+numpy
+setuptools
+wheel
+pybind11
+pandas

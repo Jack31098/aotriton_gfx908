@@ -1,0 +1,14 @@
+__pycache__/
+*build*/
+*.swp
+tritonsrc/tune-*.json
+*.csv
+*.png
+1
+2
+1.*
+2.*
+*.out
+*.err
+*.log
+*.cfg
