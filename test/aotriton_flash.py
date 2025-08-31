@@ -19,11 +19,16 @@ from pyaotriton.v3.flash import (
 if not IGNORE_BACKWARD_IMPORT:
     from pyaotriton.v2.flash import (
         attn_bwd as fa_backward,
-        attn_bwd_fused as fa_backward_fused,
         attn_bwd_compact_varlen as fa_backward_compact_varlen,
         BwdExtraArguments,
         FusedBwdExtraArguments,
     )
+    try:
+        from pyaotriton.v2.flash import attn_bwd_fused as fa_backward_fused
+    except ImportError:
+        HAS_FUSED = False
+        fa_backward_fused = None
+
     from pyaotriton.v3.flash import (
         attn_bwd as fa_backward_op,
         attn_bwd_params as fa_backward_op_params,
@@ -330,25 +335,27 @@ def attn_bwd_fused(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, L,
         hipDeviceSynchronize()
     causal_type, window_left, window_right = translate_causal(causal, v3_api=False)
     # print(f'{b=}')
-    err = fa_backward_fused(qview,
-                            kview,
-                            vview,
-                            bview,
-                            float(sm_scale),
-                            oview,
-                            doutview,
-                            dqview,
-                            dkview,
-                            dvview,
-                            dbview,
-                            Lview,
-                            float(dropout_p),
-                            seedview,
-                            offset1view,
-                            philox_offset2,
-                            causal_type,
-                            Stream(),
-                            extargs)
+    if HAS_FUSED:
+        err = fa_backward_fused(qview,
+                                kview,
+                                vview,
+                                bview,
+                                float(sm_scale),
+                                oview,
+                                doutview,
+                                dqview,
+                                dkview,
+                                dvview,
+                                dbview,
+                                Lview,
+                                float(dropout_p),
+                                seedview,
+                                offset1view,
+                                philox_offset2,
+                                causal_type,
+                                Stream(),
+                                extargs)
+    else:
     if AOTRITON_TORCH_ONLY_USE_CPU:
         _torch_cpu_only_copy_back([dq, dk, dv, db],
                                   [dqdevm, dkdevm, dvdevm, dbdevm])

@@ -5,7 +5,9 @@
 #include <aotriton/_internal/util.h>
 #include <aotriton/flash.h>
 #include <aotriton/util.h>
+#if !defined(AOTRITON_DISABLE_FUSED_BWD)
 #include <flash/shim.bwd_kernel_fuse.h>
+#endif
 #include <iostream>
 
 namespace AOTRITON_NS::v2::flash {

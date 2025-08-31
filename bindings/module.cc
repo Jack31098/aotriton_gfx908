@@ -110,6 +110,7 @@ namespace pyaotriton {
               py::arg("is_causal"),
               py::arg("stream") = nullptr,
               py::arg("extargs") = BwdExtraArguments());
+#if !defined(AOTRITON_DISABLE_FUSED_BWD)
         m.def("attn_bwd_fused",
               &aotriton::v2::flash::attn_bwd_fused,
               "Flash Attention Backward Pass",
@@ -133,6 +134,7 @@ namespace pyaotriton {
               py::arg("is_causal"),
               py::arg("stream") = nullptr,
               py::arg("extargs") = FusedBwdExtraArguments());
+#endif
         m.def("attn_bwd_compact_varlen",
               &aotriton::v2::flash::attn_bwd_compact_varlen,
               "Flash Attention Backward Pass, Compact Stored Varlen",
