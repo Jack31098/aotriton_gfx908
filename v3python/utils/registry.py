@@ -23,8 +23,10 @@ class StringRegistry(object):
           with the returned offset values.
     '''
     def get_data(self):
-        packed_string = '\n'.join(['"' + s + '\\0"' for s in self._string_dict if s is not None])
-        return packed_string
+        items = [s for s in self._string_dict if s is not None]
+        if not items:
+            return '""'  # ensure valid C initializer even when empty
+        packed_string = '\n'.join(['"' + s + '\\0"' for s in items])
 
 @dataclass
 class FunctionItem:
