@@ -1,6 +1,7 @@
 # Copyright © 2023-2025 Advanced Micro Devices, Inc.
 # SPDX-License-Identifier: MIT
 
+import os
 from v3python.op import (
     MetroKernel,
     ConditionalKernel,
@@ -32,6 +33,8 @@ __bwd_aiter = bwd_dq_dk_dv_v3()
 # # TODO: Re-implement this as part of kernel(?)
 __debug_simulate_encoded_softmax = debug_simulate_encoded_softmax('debug_simulate_encoded_softmax', SOURCE_FILE)
 
+_DISABLE_FUSED_BWD = os.getenv('AOTRITON_DISABLE_FUSED_BWD', '1').lower() in ('1', 'true', 'yes')
+
 kernels = [
     __bwd_preprocess,
     __bwd_preprocess_varlen,
@@ -39,7 +42,7 @@ kernels = [
     __attn_fwd,
     __bwd_kernel_dk_dv,
     __bwd_kernel_dq,
-    __bwd_kernel_fuse,
+    *([] if _DISABLE_FUSED_BWD else [__bwd_kernel_fuse]),
     __debug_simulate_encoded_softmax,
 ]
 
@@ -68,7 +71,7 @@ operators = [
                        [ConditionalKernel('num_seqlens', '> 0', __bwd_preprocess_varlen, __bwd_preprocess),
                         __bwd_kernel_dk_dv,
                         __bwd_kernel_dq]),
-        __bwd_kernel_fuse,
+        *([] if _DISABLE_FUSED_BWD else [__bwd_kernel_fuse]),
         MetroBwdKernel('aiter_asm',
                        [ConditionalKernel('num_seqlens', '> 0', __bwd_preprocess_varlen, __bwd_preprocess),
                         __bwd_aiter,

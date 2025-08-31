@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <aotriton/config.h>
+#if !defined(AOTRITON_DISABLE_FUSED_BWD)
 #include <aotriton/_internal/util.h>
 #include <aotriton/flash.h>
 #include <aotriton/util.h>
@@ -162,6 +163,9 @@ _bwd_kernel_fuse(T4 q,
 #endif
   return err;
 }
+#else
+// Fused backward is disabled at build time. Provide no-op translation unit to avoid undefined references.
+#endif // !AOTRITON_DISABLE_FUSED_BWD
 
 hipError_t
 attn_bwd_fused(T4 q,

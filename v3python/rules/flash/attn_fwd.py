@@ -76,7 +76,8 @@ class attn_fwd(FlashKernel):
     def gen_autotune_configs(f : 'Functional'):
         arch = f.arch
         dtype = check_value(f, ['Q'])
-        HEAD_DIM = check_value(f, ['BLOCK_DMODEL'])
+        # Fallback: if BLOCK_DMODEL is missing in functional, assume 64 to ensure at least one HSACO
+        HEAD_DIM = check_value(f, ['BLOCK_DMODEL']) if 'BLOCK_DMODEL' in f.compact_choices else 64
         CAUSAL_TYPE = check_value(f, ['CAUSAL_TYPE'])
         ret = []
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'

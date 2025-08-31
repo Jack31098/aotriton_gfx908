@@ -72,6 +72,7 @@ set(AOTRITON_BUILD_FOR_TUNING_BUT_SKIP_KERNEL "" CACHE STRING "Use tuning databa
 option(AOTRITON_ENABLE_FP32_INPUTS "Enable FP32 support." ON)
 option(AOTRITON_NOIMAGE_MODE "Only build C++ Shim part. Kernel image builds are disabled" OFF)
 option(AOTRITON_INHERIT_SYSTEM_SITE_TRITON "Use system site packages and verify triton availability instead of building from source" OFF)
+option(AOTRITON_DISABLE_FUSED_BWD "Disable fused backward kernels and dispatch" ON)
 # No plan to support network based pip install
 set(AOTRITON_USE_LOCAL_TRITON_WHEEL "" CACHE STRING "Substitute install from third_party/triton with install from local pip wheel package.")
 set(AOTRITON_GPU_BUILD_TIMEOUT "8.0" CACHE STRING "GPU kernel compiler times out after X minutes. 0 for indefinite. Highly recommended if AOTRITON_BUILD_FOR_TUNING=On.")
@@ -134,6 +135,14 @@ endif()
 
 if(AOTRITON_ENABLE_ASAN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer")
+endif()
+
+# Propagate fused bwd disable macro to all C++ targets
+if(AOTRITON_DISABLE_FUSED_BWD)
+  add_compile_definitions(AOTRITON_DISABLE_FUSED_BWD)
+  message(STATUS "AOTRITON_DISABLE_FUSED_BWD=ON")
+else()
+  message(STATUS "AOTRITON_DISABLE_FUSED_BWD=OFF")
 endif()
 
 set(Python_ARTIFACTS_INTERACTIVE TRUE)

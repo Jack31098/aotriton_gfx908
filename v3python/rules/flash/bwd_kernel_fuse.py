@@ -75,10 +75,18 @@ class bwd_kernel_fuse(FlashBwdKernel):
     }
     DOWNGRADER = []
 
+    def is_functional_disabled(self, functional):
+        if functional.arch == 'gfx908':
+            return True
+        return super().is_functional_disabled(functional)
+
     @staticmethod
     def gen_autotune_configs(f : 'Functional'):
         arch = f.arch
+        if arch == 'gfx908':
+            return
         dtype = check_value(f, ['Q'])
+
         HEAD_DIM = check_value(f, ['BLOCK_DMODEL'])
         ret = []
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'

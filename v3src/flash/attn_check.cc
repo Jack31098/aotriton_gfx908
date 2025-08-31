@@ -7,7 +7,9 @@
 #include <aotriton/util.h>
 #include <flash/shim.attn_fwd.h>
 #include <flash/shim.bwd_kernel_dk_dv.h>
+#if !defined(AOTRITON_DISABLE_FUSED_BWD)
 #include <flash/shim.bwd_kernel_fuse.h>
+#endif
 #include <flash/shim.bwd_kernel_dq.h>
 #include <flash/shim.bwd_preprocess.h>
 #include <flash/shim.bwd_preprocess_varlen.h>
@@ -22,8 +24,10 @@ using AttnFwdContext              = AOTRITON_NS::v3::flash::AttnFwdContext;
 using BwdPreprocessContext        = AOTRITON_NS::v3::flash::BwdPreprocessContext;
 using BwdPreprocessVarlenContext  = AOTRITON_NS::v3::flash::BwdPreprocessVarlenContext;
 using BwdKernelDkDvContext        = AOTRITON_NS::v3::flash::BwdKernelDkDvContext;
-using BwdKernelDqContext          = AOTRITON_NS::v3::flash::BwdKernelDqContext;
+#if !defined(AOTRITON_DISABLE_FUSED_BWD)
 using BwdKernelFuseContext        = AOTRITON_NS::v3::flash::BwdKernelFuseContext;
+#endif
+using BwdKernelDqContext          = AOTRITON_NS::v3::flash::BwdKernelDqContext;
 
 #ifdef NDEBUG
 #define CHECK_FOR_KERNEL(Context)                                 \
@@ -51,7 +55,9 @@ check_gpu(AOTRITON_NS::Stream stream_wrap) {
   CHECK_FOR_KERNEL(BwdPreprocessContext);
   CHECK_FOR_KERNEL(BwdKernelDkDvContext);
   CHECK_FOR_KERNEL(BwdKernelDqContext);
+#if !defined(AOTRITON_DISABLE_FUSED_BWD)
   CHECK_FOR_KERNEL(BwdKernelFuseContext);
+#endif
   return hipSuccess;
 }
 
