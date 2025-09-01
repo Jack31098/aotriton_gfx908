@@ -9,7 +9,6 @@ import numpy as np
 
 class Operator(Interface):
     TUNE_NAME = 'optune'
-    CALL_OPTIONS_NAME = None
 
     def __init__(self, backends : list[Interface]):
         super().__init__()
@@ -50,7 +49,7 @@ class Operator(Interface):
         sparse_key_possible_values = { key : sorted_unique_key(key) for key in sparse_keys }
         binning_dict = { key : algo(sparse_key_possible_values[f'inputs${key}']) for key, algo in self.OPTUNE_KEYS.items() }
         lut_shape = [f.noptimized_for] + [ len(sparse_key_possible_values[key]) for key in sparse_keys ]
-        lut_tensor = np.full(lut_shape, -1, dtype=np.int32)
+        lut_tensor = np.empty(lut_shape, dtype=object)
         backend_key = 'op$backend'
         '''
         Bucketing autotune indices
@@ -60,19 +59,17 @@ class Operator(Interface):
             def discretization(v):
                 return bucket.index(v)
             df[f'$$ind_{i}'] = df[ind_key].apply(discretization)
-        for i, gpu in enumerate(f.database_gpus):
+        for i, gpu in enumerate(f.optimized_for):
             if i > 0:
                 lut_tensor[i] = lut_tensor[0]
             df_i = df[df['gpu'] == gpu]
             inds = tuple([df_i[f'$$ind_{i}'] for i in range(nkeys)])
             backends = df_i[backend_key]
-            import pandas as pd
             lut_tensor[i][inds] = backends
         '''
         LUT tensor for Optune stores string directly.
         '''
-        backend_inds = np.unique(lut_tensor).tolist()
-        return lut_tensor, [self._backends[ind].enum_name for ind in backend_inds], binning_dict
+        return lut_tensor, np.unique(lut_tensor).tolist(), binning_dict
 
     def translate_empty_dataframe(self, f : Functional):
         lut_tensor = np.zeros([f.noptimized_for, 1], dtype=np.int8)

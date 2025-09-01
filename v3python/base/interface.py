@@ -32,7 +32,6 @@ class Interface(ABC):
     CHOICE_FILTERS = None       # Optional, Exclude unsupported combinations
     TENSOR_RANKS = None         # Operator, Required if Interface has Tensor Inputs
     TENSOR_STRIDE_INPUTS = None # Operator, Required if Interface has Tensor Inputs
-    PARTIALLY_TUNED_FUNCTIONALS = {}    # Optional but usually needed
 
     @property
     def UNTYPED_FULL_NAME(self):
@@ -57,6 +56,14 @@ class Interface(ABC):
     def __init__(self):
         collected = self._collect_functionals_from_shared()
         self._insert_tensor_strides_to_choices(last_is_continuous=True)
+        def __ttypes(anames, choices):
+            for aname in anames:
+                rank = self.get_tensor_rank(aname)
+                break
+            choices = [guess_tparam_type(v, rank=rank) for v in choices]
+            if all([tt.is_tensor for tt in choices]):
+                return TParam(anames, choices, ttype=create_tensor_type('any', rank))
+            return TParam(anames, choices, ttype=typename_t)
         self._func_params = []
         self._func_params += [TP(k, v) for k, v in self.TYPE_CHOICES.items()]
         self._func_params += [TP(k, v) for k, v in self.FEAT_CHOICES.items()]
@@ -95,11 +102,6 @@ class Interface(ABC):
 
     def _build_tp_dict(self):
         return { aname : param for param in self.list_all_params() for aname in param.all_names }
-
-    def fallback_compact_dict(self, compact_dict):
-        def fallback(k, v):
-            return self.PARTIALLY_TUNED_FUNCTIONALS.get(k, v)
-        return { k : fallback(k, v) for k, v in compact_dict.items()}
 
     @property
     def func_cfields(self):

@@ -80,8 +80,11 @@ class bwd_kernel_dq(FlashBwdKernel):
         ret = []
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'
         RDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'RDNA'
+        # TODO: right sizes for fp32?
         # Narrow search space for gfx908 to speed up bring-up
         if arch == 'gfx908':
+            HEAD_DIM = check_value(f, ['BLOCK_DMODEL']) if 'BLOCK_DMODEL' in f.compact_choices else 64
+        
             if HEAD_DIM not in [64, 128]:
                 return
             BLOCK_SIZES = [32, 64]

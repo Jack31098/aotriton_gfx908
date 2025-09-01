@@ -57,16 +57,14 @@ class InterfaceGenerator(ABC):
 
         # autotune phase
         fac = DatabaseFactories.create_factory(args.build_dir)
-        # print(f'{iface.__class__=}')
         for functional in iface.gen_functionals(self._target_arch):
             # print(f'{functional=}')
-            df, sql = fac.create_view(functional)
+            df = fac.create_view(functional)
             # print(f'KernelShimGenerator.generate {df=}')
-            subg, use_this_functional = self.create_sub_generator(functional, df, sql)
+            subg, use_this_functional = self.create_sub_generator(functional, df)
             if subg is not None:
                 subg.generate()
-                if subg.cc_file:
-                    self._shim_files.append(subg.cc_file)
+                self._shim_files.append(subg.cc_file)
             if use_this_functional:
                 all_functionals.append(functional)
 
@@ -83,9 +81,6 @@ class InterfaceGenerator(ABC):
         fullfn = shim_path / shim_fn
         with LazyFile(fullfn) as fout:
             self.write_shim_header(all_functionals, fout)
-        # Note: should always generate the .cc file regardless
-        # AOTRITON_TARGET_ARCH has affine kernel, otherwise member functions of
-        # affine kernel context will be undefined
         with LazyFile(fullfn.with_suffix('.cc')) as fout:
             self.write_shim_source(all_functionals, fout)
         self._shim_files.append(fullfn)
@@ -103,10 +98,11 @@ class InterfaceGenerator(ABC):
     def write_shim_source(self, functionals, fout):
         pass
 
-    def _add_include_to_header(self, fn):
+    def _add_header_for_header(self, iface):
+        fn = self._translate_iface_to_header(iface)
         self._hdr_include_repo.register(fn)
 
-    def _add_iface_for_source(self, iface):
+    def _add_header_for_source(self, iface):
         fn = self._translate_iface_to_header(iface)
         self._src_include_repo.register(fn)
 
@@ -171,35 +167,21 @@ class InterfaceGenerator(ABC):
             self.codegen_godel_number_calculation(tp, body)
         return body.getvalue()
 
-    def codegen_godel_number_calculation(self, tp, fout, *, anamespace='args.'):
+    def codegen_godel_number_calculation(self, tp, fout):
         if tp.nchoices <= 1:
             return
         aname = tp.repr_name # meta._ordered_arguments[0][0]
         INDENT = 4 * ' '
         print(INDENT + '{', file=fout)
-        print(2 * INDENT + 'int64_t number = -1;', file=fout)
+        print(2 * INDENT + 'int64_t number = 0;', file=fout)
         for number, tc in enumerate(tp.choices):
             assert not isinstance(tc, TC.ConditionalChoice)
             if isinstance(tc, TC.tensor):
                 type_enum = tc.type_enum
-                getter = f'{anamespace}{aname}->dtype()'
-                print(2 * INDENT + f'if ({getter} == {type_enum}) number = {number} ;', file=fout)
-                vgetter = getter
+                print(2 * INDENT + f'if (args.{aname}->dtype() == {type_enum}) number = {number} ;', file=fout)
             else:
                 value = str(tc).lower()
-                getter = f'{anamespace}{aname}'
-                print(2 * INDENT + f'if ({getter} == {value}) number = {number} ;', file=fout)
-                # Otherwise cerr print int8 as char
-                if isinstance(tc, TC.constexpr.integer_base):
-                    vgetter = f'+{getter}'
-                else:
-                    vgetter = getter
-        print(2 * INDENT +  'if (number < 0) {', file=fout)
-        print(0 * INDENT +  '#ifndef NDEBUG', file=fout)
-        print(3 * INDENT + f'std::cerr << __FILE__ << ":" << __LINE__ << ": Unsupported {aname}, value: " << {vgetter} << std::endl;', file=fout)
-        print(0 * INDENT +  '#endif', file=fout)
-        print(3 * INDENT +  'return -1;', file=fout)
-        print(2 * INDENT +  '}', file=fout)
+                print(2 * INDENT + f'if (args.{aname} == {value}) number = {number} ;', file=fout)
         print(2 * INDENT + f'sum += number * {tp.godel_number};', file=fout)
         print(1 * INDENT + '}', file=fout)
 

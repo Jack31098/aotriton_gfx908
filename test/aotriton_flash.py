@@ -26,8 +26,7 @@ if not IGNORE_BACKWARD_IMPORT:
     )
     from pyaotriton.v3.flash import (
         attn_bwd as fa_backward_op,
-        attn_bwd_params as fa_backward_op_params,
-        aiter_bwd as fa_aiter_bwd,
+        attn_bwd_params as fa_backward_op_params
     )
 
 # Note: we don't use Enum class because accessing the integer requires using
@@ -70,7 +69,7 @@ def translate_causal(causal, v3_api):
             causal_type = causal
     return causal_type, window_left, window_right
 
-from pyaotriton import T1, T2, T4, DType, Stream, hipError_t, get_name_suffix, hipGetLastError
+from pyaotriton import T1, T2, T4, DType, Stream, hipError_t, get_name_suffix
 assert get_name_suffix() != "", ("To run tests, AOTriton must be compiled with suffixes "
                                  "by passing -DAOTRITON_NAME_SUFFIX=SOME_SUFFIX to cmake. "
                                  "Otherwise the AOTriton in-development may have conflicts with "
@@ -225,13 +224,10 @@ def attn_fwd(q, k, v, b, sm_scale, M, o,
     # print(f'{err=}')
     return err
 
-def attn_bwd(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, dq_acc, L, delta,
+def attn_bwd(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, L, delta,
              dropout_p, philox_seed, philox_offset1, philox_offset2, causal,
              extargs=None, call_operator=False):
-    if call_operator:
-        extargs = attn_options() if extargs is None else extargs
-    else:
-        extargs = BwdExtraArguments() if extargs is None else extargs
+    extargs = BwdExtraArguments() if extargs is None else extargs
     qview, qdevm = mk_aotensor(q)
     kview, kdevm = mk_aotensor(k)
     vview, vdevm = mk_aotensor(v)
@@ -243,15 +239,13 @@ def attn_bwd(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, dq_acc, L, delta,
     dvview, dvdevm = mk_aotensor(dv)
     dbview, dbdevm = mk_aotensor(db, if_empty_then_like=q)
     Lview, Ldevm = mk_aotensor(L)
-    if call_operator:
-        deltaview = delta
-    else:
-        deltaview, deltadevm = mk_aotensor(delta)
+    deltaview, deltadevm = mk_aotensor(delta)
     seedview, seeddevm = mk_aotensor(philox_seed)
     offset1view, offset1devm = mk_aotensor(philox_offset1)
     if AOTRITON_TORCH_ONLY_USE_CPU:
         hipDeviceSynchronize()
     causal_type, window_left, window_right = translate_causal(causal, v3_api=call_operator)
+    # print(f'{b=}')
     if not call_operator:
         err = fa_backward(qview,
                           kview,
@@ -286,7 +280,6 @@ def attn_bwd(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, dq_acc, L, delta,
         params.DV = dvview;
         params.DQ = dqview;
         params.DB = dbview;
-        params.DQ_ACC = dq_acc;
         params.L = Lview;
         params.D = deltaview;
         # params.cu_seqlens_q
@@ -304,10 +297,12 @@ def attn_bwd(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, dq_acc, L, delta,
         err = fa_backward_op(params,
                              fa_backward_op_params.kVersion,
                              Stream(),
-                             extargs)
-    if AOTRITON_TORCH_ONLY_USE_CPU:  # FIXME: V3+CPU
+                             attn_options()
+                             )
+    if AOTRITON_TORCH_ONLY_USE_CPU:
         _torch_cpu_only_copy_back([dq, dk, dv, db, delta],
                                   [dqdevm, dkdevm, dvdevm, dbdevm, deltadevm])
+    # print(f'{err=}')
     return err
 
 def attn_bwd_fused(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, L,
@@ -353,65 +348,6 @@ def attn_bwd_fused(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, L,
         _torch_cpu_only_copy_back([dq, dk, dv, db],
                                   [dqdevm, dkdevm, dvdevm, dbdevm])
     # print(f'{err=}')
-    return err
-
-def attn_bwd_aiter(q, k, v, b, sm_scale, o, dout, dq, dk, dv, db, dq_acc, L, delta,
-                   dropout_p, philox_seed, philox_offset1, philox_offset2, causal, extargs=None):
-    extargs = BwdExtraArguments() if extargs is None else extargs
-    qview, qdevm = mk_aotensor(q)
-    kview, kdevm = mk_aotensor(k)
-    vview, vdevm = mk_aotensor(v)
-    bview, bdevm = mk_aotensor(b, if_empty_then_like=q)
-    oview, odevm = mk_aotensor(o)
-    doutview, doutdevm = mk_aotensor(dout)
-    # dqaccview, dqaccdevm = mk_aotensor(dq_acc)
-    dqview, dqdevm = mk_aotensor(dq)
-    dkview, dkdevm = mk_aotensor(dk)
-    dvview, dvdevm = mk_aotensor(dv)
-    dbview, dbdevm = mk_aotensor(db, if_empty_then_like=q)
-    Lview, Ldevm = mk_aotensor(L)
-    deltaview, deltadevm = mk_aotensor(delta)
-    seedview, seeddevm = mk_aotensor(philox_seed)
-    offset1view, offset1devm = mk_aotensor(philox_offset1)
-    if AOTRITON_TORCH_ONLY_USE_CPU:
-        hipDeviceSynchronize()
-    # Keep using v3_api=False since we are not exposing Windowed Attention ATM
-    causal_type, window_left, window_right = translate_causal(causal, v3_api=False)
-    params = fa_backward_op_params()
-    params.Q = qview
-    params.K = kview
-    params.V = vview
-    params.B = bview
-    params.Sm_scale = float(sm_scale)
-    params.Out = oview
-    params.DO = doutview
-    params.DQ = dqview
-    params.DK = dkview
-    params.DV = dvview
-    params.DQ_ACC = dq_acc
-    params.DB = dbview
-    params.L = Lview
-    params.D = deltaview
-    # params.cu_seqlens_q
-    # params.cu_seqlens_k
-    # params.Max_seqlen_q
-    # params.Max_seqlen_k
-    params.dropout_p = float(dropout_p)
-    params.philox_seed_ptr = seedview
-    params.philox_offset1 = offset1view
-    params.philox_offset2 = philox_offset2
-    params.causal_type = causal_type
-    params.window_left = window_left
-    params.window_right = window_right
-    params.varlen_type = 0
-    err = fa_aiter_bwd(params,
-                       fa_backward_op_params.kVersion,
-                       Stream(),
-                       attn_options()
-                       )
-    if AOTRITON_TORCH_ONLY_USE_CPU:
-        _torch_cpu_only_copy_back([dq_acc, dk, dv, db, delta],
-                                  [dqaccdevm, dkdevm, dvdevm, dbdevm, deltadevm])
     return err
 
 # def debug_fill_dropout_rng(R, philox_seed, philox_offset):
@@ -528,10 +464,7 @@ def attn_bwd_compact_varlen(q, k, v,
     dvview, dvdevm = mk_aotensor(dv)
     dbview, dbdevm = mk_aotensor(db, if_empty_then_like=q)
     Lview, Ldevm = mk_aotensor(L)
-    if call_operator:
-        deltaview = delta
-    else:
-        deltaview, deltadevm = mk_aotensor(delta)
+    deltaview, deltadevm = mk_aotensor(delta)
     seedview, seeddevm = mk_aotensor(philox_seed)
     offset1view, offset1devm = mk_aotensor(philox_offset1)
     causal_type, window_left, window_right = translate_causal(causal, v3_api=call_operator)
@@ -594,13 +527,3 @@ def attn_bwd_compact_varlen(q, k, v,
                              )
     # print(f'{err=}')
     return err
-
-def lazy_dq_acc(dq : 'torch.Tensor'):
-    from pyaotriton import lazy_tensor
-    dq_view = T4(dq.data_ptr(), tuple(dq.size()), dq.stride(), cast_dtype(dq.dtype))
-    return lazy_tensor.dq_acc(dq_view, dq.device.index)
-
-def lazy_delta(L : 'torch.Tensor'):
-    from pyaotriton import lazy_tensor
-    L_view = T2(L.data_ptr(), tuple(L.size()), L.stride(), cast_dtype(L.dtype))
-    return lazy_tensor.delta(L_view, L.device.index)
