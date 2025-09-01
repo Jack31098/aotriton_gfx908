@@ -27,6 +27,7 @@ class StringRegistry(object):
         if not items:
             return '""'  # ensure valid C initializer even when empty
         packed_string = '\n'.join(['"' + s + '\\0"' for s in items])
+        return packed_string
 
 @dataclass
 class FunctionItem:
