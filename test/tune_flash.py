@@ -119,20 +119,10 @@ class FlashTunerSource(MonadService):
     def clamp_memory_usage(self, tup):
         a = self._args
         BATCH, N_HEADS, D_HEAD, seqlen_q, seqlen_k, causal, sm_scale, dropout_p, return_encoded_softmax, dtype, bias_type = tup
-        if sm_scale == 'l1':
-            sm_scale = 1.0 / D_HEAD
-        elif sm_scale == 'l2':
-            sm_scale = 1.0 / math.sqrt(D_HEAD)
         if 'bwd_kernel_dk_dv' in CPPTUNE_SKIP_KERNELS and 'bwd_kernel_dq' in CPPTUNE_SKIP_KERNELS and 'bwd_kernel_fuse' in CPPTUNE_SKIP_KERNELS:
             skip_bwd = True
         else:
             skip_bwd = False
-        def min_heads(n_heads, scalar, pair):
-            if isinstance(n_heads, list):
-                if n_heads > pair:
-                    return pair
-                return n_heads
-            return min(n_heads, scalar)
         if skip_bwd:
             # Empricial for FWD only
             #   batch=3 nheads=4 seqlen=8192 d_head=256 dropout=0.5 bias=1 memory cost 32G
@@ -165,11 +155,11 @@ class FlashTunerSource(MonadService):
             # Old empricical algorithm that (mostly) works with bwd
             if seqlen_q * seqlen_k * D_HEAD >= 2048 * 2048 * VRAM_CAP_IN_GB:
                 BATCH = min(BATCH, 3)
-                N_HEADS = min_heads(N_HEADS, 4, [8,4])
+                N_HEADS = min(N_HEADS, 4)
             if (causal or bias_type != 0) and seqlen_q * seqlen_k * D_HEAD >= 2048 * 2048 * VRAM_CAP_IN_GB:
                 # Prevent OOM, causal=True needs more memory
+                N_HEADS = min(N_HEADS, 2)
                 BATCH = min(BATCH, 2)
-                N_HEADS = min_heads(N_HEADS, 2, [4,2])
         return (BATCH, N_HEADS, D_HEAD, seqlen_q, seqlen_k, causal, sm_scale, dropout_p, return_encoded_softmax, dtype, bias_type)
 
     def gen_from_argv(self):
@@ -193,8 +183,6 @@ class FlashTunerSource(MonadService):
                 dtype = j['dtype']
                 bias_type = j['bias_type']
                 for BATCH, N_HEADS, sm_scale, return_encoded_softmax in itertools.product(a.batch, a.n_heads, a.sm_scale, a.return_encoded_softmax):
-                    if 'nheads' in j and isinstance(j['nheads'], list):
-                        N_HEADS = j['nheads']
                     tup = (BATCH, N_HEADS, D_HEAD, seqlen_q, seqlen_k, causal, sm_scale, dropout_p, return_encoded_softmax, dtype, bias_type)
                     yield self.clamp_memory_usage(tup)
 
@@ -254,7 +242,7 @@ class FlashTunerSource(MonadService):
         if a.continue_from_json_file and a.json_file is not None and a.json_file.is_file():
             # TODO: skipset
             with open(a.json_file, 'r') as f:
-                for line in f:
+                for line in f.readlines():
                     j = json.loads(line)
                     task_id = j['_debug_task_id']
                     if task_id in skip_set:
@@ -373,7 +361,7 @@ def parse():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument('--batch', type=int, nargs=1, default=[8], help='(Not a functional) Batch size.')
     p.add_argument('--n_heads', type=int, nargs=1, default=[12], help='(Not a functional) Number of heads')
-    p.add_argument('--sm_scale', type=float, nargs=1, default=['l1'], choices=['l1', 'l2', 1.2], help='(Not a functional) Softmax Scale')
+    p.add_argument('--sm_scale', type=float, nargs=1, default=[1.2], help='(Not a functional) Softmax Scale')
     p.add_argument('--return_encoded_softmax', type=bool, default=[False],
                    help="(A functional for debugging) kernel that returns softmax(dropout(QK')) to validate the correctness of dropout")
     p.add_argument('--d_head', type=int, nargs=NARG_PLUS, default=[16, 32, 48, 64, 80, 96, 128, 160, 192, 224, 256, 512], help='Head dimensions.')

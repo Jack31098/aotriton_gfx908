@@ -47,7 +47,7 @@ dim3 AttnFwdContext::grid_calculator() const {
     uint32_t from_cu = params->Num_CU * this->GRID_CU_MULTIP;
     uint32_t from_in = nblocks * params->Num_head_q * params->Batch;
     dim3 grid {
-      uint32_t(std::min(from_cu, from_in)),
+      std::min(from_cu, from_in),
       1,
       1,
     };
@@ -184,6 +184,12 @@ _attn_fwd_common(T4 q,
   int num_head_k = k.size(1);
   const auto& compiled_head_dims = AttnFwdMetadata::get_BLOCK_DMODEL_choices();
   int16_t head_size_rounded = round_value(head_size, compiled_head_dims);
+  // FIXME: Remove when compiler bug fixed
+  // For some reason, PADDED_HEAD must be True when bias is True, otherwise PyTorch UT fails
+  bool force_padded_head = false;
+  if (b) {
+    force_padded_head = true;
+  }
   if (head_size_rounded < 0) {
 #if AOTRITON_VERBOSE
     std::cerr << "Head dimension " << head_size << " unsupported. ";
@@ -221,7 +227,7 @@ _attn_fwd_common(T4 q,
     .Max_seqlen_k = max_seqlen_k,
     .BLOCK_DMODEL = head_size_rounded,
     .Head_dim = static_cast<int32_t>(head_size),
-    .PADDED_HEAD = (head_size_rounded != head_size),
+    .PADDED_HEAD = (head_size_rounded != head_size || force_padded_head),
     .ENABLE_DROPOUT = dropout_p > 0.0,
     .dropout_p = dropout_p,
     .philox_seed_ptr = &philox_seed,

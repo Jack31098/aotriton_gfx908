@@ -147,9 +147,6 @@ class fp16_t(float_base):
 class bf16_t(float_base):
     TRITON_TYPE_PFX = 'bf'
     NBITS = 16
-    @property
-    def sql_value(self):
-        return f'torch.bfloat{self.NBITS}'
 class fp32_t(float_base):
     NBITS = 32
 class fp16a16_t(fp16_t):
@@ -259,8 +256,7 @@ class tensor(argument_base):
         default_rank = RANKS['_default']
         def specialize(aname):
             rank = RANKS.get(aname, default_rank)
-            # Must use __class__ to ensure lazy_tensor is resolved to lazy_tensor as well
-            return self.__class__(elem_ty=self._elem_ty, rank=rank)
+            return tensor(elem_ty=self._elem_ty, rank=rank)
         # print(f'resolve_rank {self=} {self._elem_ty=} {all_names=} BEFORE {self._specialized=}')
         self._specialized.update({ aname : specialize(aname) for aname in all_names })
         log(lambda : f'resolve_rank {self=} {self._elem_ty=} {all_names=} AFTER  {self._specialized=}')
@@ -291,12 +287,6 @@ class tensor(argument_base):
     def sql_value(self):
         elem_ty = self._elem_ty
         return elem_ty.sql_value
-
-class lazy_tensor(tensor):
-    @property
-    def itype(self):
-        assert self._rank is not None
-        return f'LazyTensorInternal<{self._rank}>*'
 
 ##################### Guessing Functions #####################
 class Guess(object):
@@ -375,9 +365,6 @@ ELEMENTAL_TYPE_MAP = {
     'fp32:16' : fp32a16_t,
 }
 
-LAZY_TENSOR_PATTERN = 'LazyTensor:'
-LAZY_TENSOR_LEN = len(LAZY_TENSOR_PATTERN)
-
 def parse_complex(v : 'str | TypedChoice'):
     if isinstance(v, TypedChoice):  # Already typed
         return v
@@ -385,7 +372,4 @@ def parse_complex(v : 'str | TypedChoice'):
     log(lambda : f'{v=} {v.__class__=}')
     if v.startswith('*'):  # Tensor
         return tensor(elem_ty=ELEMENTAL_TYPE_MAP[v[1:]](), rank=None)
-    if v.startswith(LAZY_TENSOR_PATTERN):
-        etype = v[LAZY_TENSOR_LEN+1:]
-        return lazy_tensor(elem_ty=ELEMENTAL_TYPE_MAP[etype](), rank=None)
     return ELEMENTAL_TYPE_MAP[v]()

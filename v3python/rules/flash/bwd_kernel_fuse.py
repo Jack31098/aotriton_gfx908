@@ -89,6 +89,12 @@ class bwd_kernel_fuse(FlashBwdKernel):
         WAVES_PER_EU = [1, 2, 3, 4]
         NUM_WARPS = [2, 4]
         NUM_STAGES = [1]
+        # Narrow search space aggressively for gfx908 to speed up build/tuning
+        if arch == 'gfx908':
+            BLOCK_SIZES = [16]
+            WAVES_PER_EU = [2]
+            NUM_WARPS = [4]
+            NUM_STAGES = [1]
         for M, N, waves, warps, stages in itertools.product(BLOCK_SIZES,
                                                             BLOCK_SIZES,
                                                             WAVES_PER_EU,

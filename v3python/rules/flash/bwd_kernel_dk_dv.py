@@ -79,7 +79,7 @@ class bwd_kernel_dk_dv(FlashBwdKernel):
         ret = []
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'
         RDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'RDNA'
-        # Narrow search space for gfx908
+        # TODO: right sizes for fp32?
         if arch == 'gfx908':
             if HEAD_DIM not in [64, 128]:
                 return

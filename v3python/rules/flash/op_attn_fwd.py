@@ -12,6 +12,7 @@ from ._common import (
     ConditionalDeferredElseTensor as CDETensor,
 )
 
+# AOTRITON_FLASH_BLOCK_DMODEL = os.getenv('AOTRITON_FLASH_BLOCK_DMODEL', default='16, 32, 48, 64, 80, 96, 128, 160, 192, 224, 256, 512')
 # Narrow default head dims to speed up initial tuning; can be overridden by env
 # default='16, 32, 48, 64, 80, 96, 128, 160, 192, 224, 256, 512'
 AOTRITON_FLASH_BLOCK_DMODEL = os.getenv('AOTRITON_FLASH_BLOCK_DMODEL', default='64, 128')
@@ -143,7 +144,4 @@ class OpAttnFwd(OpAttn):
     OPTUNE_KEYS = {
         'Max_seqlen_q' : BinningLessOrEqual,
         'Max_seqlen_k' : BinningLessOrEqual,
-    }
-    PARTIALLY_TUNED_FUNCTIONALS = {
-        'PADDED_HEAD': False,
     }

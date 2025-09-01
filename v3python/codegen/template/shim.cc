@@ -5,7 +5,6 @@
 #include "shim.[[shim_kernel_name]].h"
 #include <aotriton/util.h>
 #include <tuple>
-#include <iostream>
 [[includes]]
 
 namespace AOTRITON_NS::v3::[[kernel_family_name]] {
@@ -15,7 +14,7 @@ using AOTRITON_NS::v3::[[shared_iface_family]]::[[param_class_name]];
 #endif
 
 #define CAST(x) const_cast<void*>(static_cast<const void*>(x))
-typedef std::vector<void*>(*PP_FUNC)(const [[param_class_name]]& context, const TritonAuxiliaryArguments&);
+typedef std::vector<void*>(*PP_FUNC)(const [[param_class_name]]& context, hipDeviceptr_t*);
 
 namespace {
 extern PP_FUNC prepare_arguments[ [[pp_func_num]] ];
@@ -36,10 +35,7 @@ hipError_t
         return hipErrorNoBinaryForGpu;
     }
     kernel_on_device = nullptr;
-    auto number = godel_number();
-    if (number < 0)
-        return hipErrorNotSupported;
-    auto tune_func = autotune_table[arch_number][number];
+    auto tune_func = autotune_table[arch_number][godel_number()];
     if (!tune_func)
         return hipErrorProfilerNotInitialized;
     tune_func(*this, mod_number);
@@ -51,8 +47,8 @@ hipError_t
 hipError_t
 [[context_class_name]]::launch(hipStream_t stream) const {
     constexpr std::string_view triton_kernel_name { "[[triton_kernel_name]]" };
-    TritonAuxiliaryArguments aux;
-    auto args = prepare_arguments[pp_args_index](*this->params, aux);
+    hipDeviceptr_t global_scratch = 0;
+    auto args = prepare_arguments[pp_args_index](*this->params, &global_scratch);
     dim3 grid;
     if (custom_grid_calculator) {
         grid = custom_grid_calculator(*this);

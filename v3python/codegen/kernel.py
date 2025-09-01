@@ -23,19 +23,19 @@ class KernelShimGenerator(InterfaceGenerator):
     SOURCE_TEMPLATE = get_template('shim.cc')
     PFX = 'shim'
 
-    def create_sub_generator(self, functional : Functional, df : 'pandas.DataFrame', sql : str):
+    def create_sub_generator(self, functional : Functional, df : 'pandas.DataFrame'):
         if functional.meta_object.is_functional_disabled(functional):
             log(lambda : f'Functional {functional.godel_number=} disabled')
             use_this_functional = False
             return None, use_this_functional
         use_this_functional = True
-        return AutotuneCodeGenerator(self._args, functional, df, sql, self._this_repo), use_this_functional
+        return AutotuneCodeGenerator(self._args, functional, df, self._this_repo), use_this_functional
 
     def write_shim_header(self, functionals, fout):
         kdesc = self._iface
         shared_iface = kdesc.SHARED_IFACE is not None
         if shared_iface:
-            self._add_iface_for_source(kdesc.SHARED_IFACE)
+            self._add_header_for_source(kdesc.SHARED_IFACE)
             # hdr_name = kdesc.SHARED_IFACE.NAME
             # iface_header = f'#include "iface.{hdr_name}.h"'
         shared_iface_family = kdesc.SHARED_IFACE.FAMILY if shared_iface else kdesc.FAMILY
@@ -54,7 +54,6 @@ class KernelShimGenerator(InterfaceGenerator):
             'number_of_functionals' : kdesc._godel_number,
             'declare_list_of_deduplicated_lut_functions' : self.codegen_declare_list_of_deduplicated_lut_functions(),
         }
-        d['includes'] = codegen_includes(self._hdr_include_repo.get_data())
         print(self.HEADER_TEMPLATE.format_map(d), file=fout)
 
     def write_shim_source(self, functionals, fout):
@@ -131,7 +130,7 @@ const std::vector<{infotype}>& {meta_class}::get_{tp.repr_name}_choices()
             pp_function_name = f'{self._iface.NAME}_pp_args_{findex}'
             stmt.append(f'static std::vector<void*>')
             stmt.append(f'{pp_function_name}(const {param_class_name}& params,')
-            stmt.append(' ' * len(pp_function_name) + ' const TritonAuxiliaryArguments& aux) {')
+            stmt.append(' ' * len(pp_function_name) + ' hipDeviceptr_t* global_scratch) {')
             stmt.append(src)
             stmt.append(f'}}')
             array.append(pp_function_name)

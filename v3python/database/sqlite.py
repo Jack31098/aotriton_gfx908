@@ -27,35 +27,20 @@ def create_select_stmt(table_name, wheres):
             where_stmt.append(f'{k} = ?')
             params.append(v.sql_value if isinstance(v, TC.TypedChoice) else v)
     stmt += ' AND '.join(where_stmt)
-    # print('create_select_stmt', stmt)
     return stmt, params
-
-def format_sql(stmt, params):
-    template = stmt.replace('?', '{!r}')
-    return template.format(*params)
 
 class Factory(object):
     SIGNATURE_FILE = 'tuning_database.sqlite3'
-    SECONDARY_DATABASES = {
-        'op': 'op_database.sqlite3',
-    }
 
     def __init__(self, path):
         log(lambda : f'sqlite3.connect({path / self.SIGNATURE_FILE})')
         self._conn = sqlite3.connect(path / self.SIGNATURE_FILE)
         self._conn.set_trace_callback(log) # Debug
-        for schema, bn in self.SECONDARY_DATABASES.items():
-            fn = path / bn
-            if fn.is_file():
-                log(lambda : f"ATTACH DATABASE '{fn.as_posix()}' AS {schema};")
-                self._conn.execute(f"ATTACH DATABASE '{fn.as_posix()}' AS {schema};")
-            else:
-                assert False, f'{fn} is not a file, {path}'
 
     def create_view(self, functional):
         log(lambda : f'{functional=}')
         meta = functional.meta_object
-        pfx = 'op.' if isinstance(meta, Operator) else ''
+        pfx = 'OP$' if isinstance(meta, Operator) else ''
         table_name = pfx + meta.FAMILY.upper() + '$' + meta.NAME
         # TODO: Incremental changes:
         # 1. load database_gpus first
@@ -75,11 +60,10 @@ class Factory(object):
             log(lambda : f'select stmt: {stmt} params {params}')
             df = pd.read_sql_query(stmt, self._conn, params=params)
             if not df.empty:
-                return df, format_sql(stmt, params)
+                return df
             # Downgrade
             stmt, params = build_sql(functional.fallback_choices)
-            df = pd.read_sql_query(stmt, self._conn, params=params)
-            return df, format_sql(stmt, params)
+            return pd.read_sql_query(stmt, self._conn, params=params)
         except pd.errors.DatabaseError:
             log(lambda : f'Table {table_name} may not exist. select stmt: {stmt} params {params}')
-            return None, ''
+            return None

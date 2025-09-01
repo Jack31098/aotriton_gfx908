@@ -93,8 +93,6 @@ attn_bwd(const attn_bwd_params& in,
     if (head_dim_rounded == 80)
       head_dim_rounded = 96;
   }
-  LazyTensorInternal<2> lazy_delta(in.D);
-  LazyTensorInternal<4> lazy_dq_acc(in.DQ_ACC);
   OpAttnBwdParams params = {
     .Q = &in.Q,
     .K = &in.K,
@@ -107,9 +105,8 @@ attn_bwd(const attn_bwd_params& in,
     .DV = &in.DV,
     .DQ = &in.DQ,
     .DB = &in.DB,
-    .DQ_ACC = &lazy_dq_acc,
     .L = &in.L,
-    .D = &lazy_delta,
+    .D = &in.D,
     .num_head_q = num_head_q,
     .num_head_k = num_head_k,
     .cu_seqlens_q = &in.cu_seqlens_q,
@@ -128,35 +125,15 @@ attn_bwd(const attn_bwd_params& in,
     .CAUSAL_TYPE = in.causal_type,
     .ENABLE_DROPOUT = in.dropout_p > 0.0,
     .PADDED_HEAD = head_dim != head_dim_rounded,
-    .BIAS_TYPE = static_cast<int8_t>(bool(in.B) ? 1 : 0),
+    .BIAS_TYPE = bool(in.B) ? 1 : 0,
   };
   OpAttnBwdContext context;
   context.params = &params;
-  context.call_options = options;
-#ifndef NDEBUG
-  std::cerr << "v3::flash::attn_bwd options = " << options << std::endl;
-  if (options) {
-    std::cerr << "v3::flash::attn_bwd options->force_backend_index = "
-              << options->force_backend_index
-              << std::endl;
+  err = context.lookup_optimal(gpu);
+  if (err != hipSuccess) {
+    return err;
   }
-#endif
-  if (options && options->force_backend_index >= 0) {
-    context.backend_index = static_cast<OpAttnBwdContext::BackendEnum>(options->force_backend_index);
-    context.disable_fallback = true;
-  } else {
-    err = context.lookup_optimal(gpu);
-    if (err != hipSuccess) {
-      return err;
-    }
-  }
-#ifndef NDEBUG
-  std::cerr << "v3::flash::attn_bwd context.backend_index = " << context.backend_index << std::endl;
-#endif
-  err = context.launch(gpu, stream);
-  in.D.free();
-  in.DQ_ACC.free();
-  return err;
+  return context.launch(gpu, stream);
 }
 
 }
@@ -214,12 +191,11 @@ bwd_preprocess(T4 out, T4 dout, T2 delta, AOTRITON_NS::Stream stream_wrap) {
 #endif
     return hipErrorInvalidValue;
   }
-  EagerLazyTensor<2> eager_lazy_delta(delta);
   // Requires C++ 20
   BwdPreprocessParams params = {
     .Out = &out,
     .DO = &dout,
-    .D = &eager_lazy_delta,
+    .D = &delta,
     .max_seqlen_q = static_cast<int32_t>(out.size(2)),
     .head_dim = head_size,
     .BLOCK_DMODEL = int16_t(head_size_rounded),
@@ -271,12 +247,11 @@ bwd_preprocess_varlen(T4 out,
 #endif
     return hipErrorInvalidValue;
   }
-  EagerLazyTensor eager_lazy_delta(delta);
   // Requires C++ 20
   BwdPreprocessVarlenParams params = {
     .Out = &out,
     .DO = &dout,
-    .D = &eager_lazy_delta,
+    .D = &delta,
     .cu_seqlens_q = &cu_seqlens_q,
     .max_seqlen_q = max_seqlen_q,
     .head_dim = head_size,
@@ -350,7 +325,6 @@ bwd_kernel_dk_dv(T4 q,
   if (b) {
     bias_type = 1;
   }
-  EagerLazyTensor eager_lazy_delta(delta);
   BwdKernelDkDvParams params = {
     .Q = &q,
     .K = &k,
@@ -362,7 +336,7 @@ bwd_kernel_dk_dv(T4 q,
     .DK = &dk,
     .DV = &dv,
     .L = &softmax_lse,
-    .D = &eager_lazy_delta,
+    .D = &delta,
     .num_head_q = num_head_q,
     .num_head_k = num_head_k,
     .cu_seqlens_q = &cu_seqlens_q,
@@ -475,7 +449,6 @@ bwd_kernel_dq(T4 q,
   if (b) {
     bias_type = 1;
   }
-  EagerLazyTensor eager_lazy_delta(delta);
   BwdKernelDqParams params = {
     .Q = &q,
     .K = &k,
@@ -487,7 +460,7 @@ bwd_kernel_dq(T4 q,
     .DQ = &dq,
     .DB = &db,
     .L = &softmax_lse,
-    .D = &eager_lazy_delta,
+    .D = &delta,
     .num_head_q = num_head_q,
     .num_head_k = num_head_k,
     .cu_seqlens_q = &cu_seqlens_q,

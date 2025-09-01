@@ -8,9 +8,8 @@
 #include "dtypes.h"
 #include "runtime.h"
 #include <functional>
-#include <cstdint>
+#include <stdint.h>
 #include <string_view>
-#include <array>
 
 namespace AOTRITON_NS {
 
@@ -59,7 +58,6 @@ enum AOTRITON_API Gpu : uint64_t {
   GPU_AMD_ARCH_GFX942_MOD2  = TRICAT(GpuVendor::kAMD,  0x942, 2),
   GPU_AMD_ARCH_GFX1100_MOD0 = TRICAT(GpuVendor::kAMD, 0x1100, 0),
   GPU_AMD_ARCH_GFX1101_MOD0 = TRICAT(GpuVendor::kAMD, 0x1101, 0),
-  GPU_AMD_ARCH_GFX1102_MOD0 = TRICAT(GpuVendor::kAMD, 0x1102, 0),
   GPU_AMD_ARCH_GFX1151_MOD0 = TRICAT(GpuVendor::kAMD, 0x1151, 0),
   GPU_AMD_ARCH_GFX1150_MOD0 = TRICAT(GpuVendor::kAMD, 0x1150, 0),
   GPU_AMD_ARCH_GFX950_MOD0  = TRICAT(GpuVendor::kAMD,  0x950, 0),
@@ -112,19 +110,11 @@ public:
     return sizes_;
   }
 
-  const uint64_t* size_ptr() const {
-    return sizes_.data();
-  }
-
   std::array<uint64_t, Rank> strides() const {
     return strides_;
   }
 
-  const uint64_t* stride_ptr() const {
-    return strides_.data();
-  }
-
-  void* data_ptr() const {
+  const void* data_ptr() const {
     return base_;
   }
 
@@ -149,7 +139,7 @@ public:
                               dtype};
   }
 private:
-  void* base_ = nullptr;
+  const void* base_ = nullptr;
   std::array<uint64_t, Rank> sizes_;
   std::array<uint64_t, Rank> strides_;
   DType dtype_ = kUnknown;
@@ -186,7 +176,7 @@ public:
     return {};
   }
 
-  void* data_ptr() const {
+  const void* data_ptr() const {
     return base_;
   }
 
@@ -203,42 +193,15 @@ public:
     return const_cast<void*>(static_cast<const void*>(&base_));
   }
 private:
-  void* base_ = nullptr;
+  const void* base_ = nullptr;
   DType dtype_ = kUnknown;
 };
 
-#ifndef aotriton_v2_EXPORTS
+
 extern template class TensorView<1>;
 extern template class TensorView<2>;
 extern template class TensorView<3>;
 extern template class TensorView<4>;
-#endif // aotriton_v2_EXPORTS
-
-// Lazy allocated Tensors
-// For tensors that are only needed by certain backend of arguments
-//
-// Intentionally not using std::function to avoid potential ABI change in
-// libstdc++/libc++
-template<int Rank>
-struct LazyTensor {
-  void* cookie = nullptr;
-  TensorView<Rank> (*acquire)(void* cookie) = nullptr;
-  // Note for user: Remeber put necessary information to dispose this tensor to
-  //                "cookie" object in acquire.
-  void  (*dispose)(void* cookie) = nullptr;
-
-  operator bool() const {
-    return cookie != nullptr || acquire != nullptr || dispose != nullptr;
-  }
-
-  // FIXME: This design is prone to memory leaks.
-  void free() {
-    if (dispose && cookie) {
-      (*dispose)(cookie);
-      cookie = nullptr;
-    }
-  }
-};
 
 Gpu AOTRITON_API getGpuFromStream(hipStream_t);
 bool AOTRITON_API isArchExperimentallySupported(hipStream_t);

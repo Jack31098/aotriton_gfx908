@@ -16,6 +16,7 @@ AOTRITON_SUPPORTED_GPUS = (
 )
 
 AOTRITON_TUNING_DATABASE_REUSE = {
+    'gfx908_mod0'  : 'gfx90a_mod0',
     'gfx950_mod0'  : 'gfx942_mod0',
     'gfx1151_mod0' : 'gfx1100_mod0',
     'gfx1201_mod0' : 'gfx1100_mod0',

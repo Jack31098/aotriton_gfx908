@@ -5,7 +5,6 @@
 #include "iface.[[iface_name]].h"
 #include <aotriton/util.h>
 #include <tuple>
-#include <iostream>
 [[includes]]
 
 namespace AOTRITON_NS::v3::[[family_name]] {
@@ -25,16 +24,12 @@ hipError_t
         return hipErrorNoBinaryForGpu;
     }
     backend_index = BackendEnum::None;
-    auto number = godel_number();
-    if (number < 0)
-        return hipErrorNotSupported;
-    auto tune_func = optune_table[arch_number][number];
+    auto tune_func = optune_table[arch_number][godel_number()];
     if (!tune_func)
         return hipErrorProfilerNotInitialized;
     tune_func(*this, mod_number);
-    // In case tuning database is broken
-    if (backend_index < 0)
-        backend_index = fallback_backend;
+    // Operator's capability is union of all backends
+    // Hence there must be a backend that handles the inputs
     return hipSuccess;
 }
 
@@ -56,17 +51,7 @@ hipError_t
     // It is possible that the optimal backend does not support certain inputs
     // In this case hipErrorPeerAccessUnsupported will be returned
     if (ret == hipErrorPeerAccessUnsupported) {
-        if (!disable_fallback) {
-#ifndef NDEBUG
-          std::cerr << "[[context_class_name]]::launch failed with optimal backend, "
-                     << "calling fallback." << std::endl;
-#endif
-          return launcher_table[fallback_backend](*this, gpu, stream);
-        }
-#ifndef NDEBUG
-        std::cerr << "[[context_class_name]]::launch failed with optimal backend, "
-                   << "fallback disabled, returning error." << std::endl;
-#endif
+        return launcher_table[fallback_backend](*this, gpu, stream);
     }
     return ret;
 }
