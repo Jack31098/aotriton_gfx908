@@ -83,10 +83,17 @@ class bwd_kernel_dk_dv(FlashBwdKernel):
         if arch == 'gfx908':
             if HEAD_DIM not in [64, 128]:
                 return
-            BLOCK_SIZES = [32, 64]
-            WAVES_PER_EU = [2]
-            NUM_WARPS = [4]
-            NUM_STAGES = [1]
+            # Curated presets (avoid cross-product), based on gfx90a hotspots
+            presets = [
+                # (BLOCK_M, BLOCK_N, waves_per_eu, num_warps, num_stages)
+                (32, 16, 2, 1, 2), (32, 16, 2, 1, 1), (32, 16, 2, 1, 3),
+                (16, 16, 2, 1, 2), (16, 16, 2, 1, 1),
+                (64, 16, 4, 1, 2), (64, 32, 2, 1, 2),
+            ]
+            for (M, N, waves, warps, stages) in presets:
+                kw = {'BLOCK_M': M, 'BLOCK_N': N, 'waves_per_eu': waves}
+                yield Config(kw, num_stages=stages, num_warps=warps)
+            return
         else:
             # TODO: right sizes for fp32?
             BLOCK_SIZES = [16, 32, 64] if dtype != '*fp32:16' else [16, 32]

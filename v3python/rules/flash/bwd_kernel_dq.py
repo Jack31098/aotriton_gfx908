@@ -81,16 +81,21 @@ class bwd_kernel_dq(FlashBwdKernel):
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'
         RDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'RDNA'
         # TODO: right sizes for fp32?
-        # Narrow search space for gfx908 to speed up bring-up
+        # Narrow search space for gfx908 using curated presets (avoid cross-product)
         if arch == 'gfx908':
             HEAD_DIM = check_value(f, ['BLOCK_DMODEL']) if 'BLOCK_DMODEL' in f.compact_choices else 64
-        
             if HEAD_DIM not in [64, 128]:
                 return
-            BLOCK_SIZES = [32, 64]
-            WAVES_PER_EU = [2]
-            NUM_WARPS = [4]
-            NUM_STAGES = [1]
+            presets = [
+                # (BLOCK_M, BLOCK_N, waves_per_eu, num_warps, num_stages)
+                (32, 16, 2, 1, 1), (32, 16, 2, 1, 2), (32, 16, 2, 1, 3),
+                (16, 16, 2, 1, 1), (16, 16, 2, 1, 2),
+                (64, 16, 4, 1, 2),
+            ]
+            for (M, N, waves, warps, stages) in presets:
+                kw = {'BLOCK_M': M, 'BLOCK_N': N, 'waves_per_eu': waves}
+                yield Config(kw, num_stages=stages, num_warps=warps)
+            return
         else:
             # TODO: right sizes for fp32?
             BLOCK_SIZES = [16, 32, 64] if dtype != '*fp32:16' else [16, 32]
