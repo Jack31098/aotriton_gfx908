@@ -122,6 +122,8 @@ class bwd_dq_dk_dv_v3(FlashAffine):
         dtype = check_value(functional, ['Q'])
         if '*fp32' in dtype:
             return True
+        if 'BLOCK_DMODEL' not in functional.compact_choices:
+            return True
         hdim = check_value(functional, ['BLOCK_DMODEL'])
         if hdim > 192:
             return True

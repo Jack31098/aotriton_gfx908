@@ -79,7 +79,8 @@ class bwd_kernel_fuse(FlashBwdKernel):
     def gen_autotune_configs(f : 'Functional'):
         arch = f.arch
         dtype = check_value(f, ['Q'])
-        HEAD_DIM = check_value(f, ['BLOCK_DMODEL'])
+        HEAD_DIM = check_value(f, ['BLOCK_DMODEL']) if 'BLOCK_DMODEL' in f.compact_choices else 64
+        # HEAD_DIM = check_value(f, ['BLOCK_DMODEL'])
         ret = []
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'
         RDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'RDNA'

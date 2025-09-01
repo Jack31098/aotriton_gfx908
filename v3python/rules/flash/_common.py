@@ -53,6 +53,8 @@ class FlashKernel(KernelDescription):
     def is_functional_disabled(self, functional):
         if not hasattr(self, 'gen_autotune_configs'):  # only check acutal FA kernels
             return False
+        if 'BLOCK_DMODEL' not in functional.compact_choices:
+            return False
         is_causal = check_value(functional, ['CAUSAL', 'CAUSAL_TYPE'])
         bias_type = check_value(functional, 'BIAS_TYPE')
         # print(f'Functional {functional.godel_number=} {is_causal=} {bias_type=}')

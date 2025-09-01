@@ -37,29 +37,52 @@ from mptune.core import (
 )
 
 def get_total_memory_from_amdsmi():
-    from amdsmi import (
-        amdsmi_init,
-        amdsmi_get_processor_handles,
-        amdsmi_get_gpu_vram_usage,
-        AmdSmiException,
-        amdsmi_shut_down,
-    )
-    amdsmi_init()
-    vram_cap = -1
+    """Get GPU memory info using rocm-smi as fallback when amdsmi is incompatible"""
     try:
-        devices = amdsmi_get_processor_handles()
-        for device in devices:
-            vram_usage = amdsmi_get_gpu_vram_usage(device)
-            total_memory = vram_usage['vram_total'] / (1024 ** 1)  # MB -> GB
-            vram_cap = min(vram_cap, total_memory) if vram_cap > 0 else total_memory
-    except AmdSmiException as e:
-        print(e)
-    finally:
+        # Try amdsmi first
+        from amdsmi import (
+            amdsmi_init,
+            amdsmi_get_processor_handles,
+            amdsmi_get_gpu_vram_usage,
+            AmdSmiException,
+            amdsmi_shut_down,
+        )
+        amdsmi_init()
+        vram_cap = -1
         try:
-            amdsmi_shut_down()
+            devices = amdsmi_get_processor_handles()
+            for device in devices:
+                vram_usage = amdsmi_get_gpu_vram_usage(device)
+                total_memory = vram_usage['vram_total'] / (1024 ** 3)  # Bytes -> GB
+                vram_cap = min(vram_cap, total_memory) if vram_cap > 0 else total_memory
         except AmdSmiException as e:
-            print(e)
-    return vram_cap
+            print(f"amdsmi error: {e}")
+            return -1
+        finally:
+            try:
+                amdsmi_shut_down()
+            except AmdSmiException as e:
+                print(f"amdsmi shutdown error: {e}")
+        return vram_cap
+    except (ImportError, AttributeError):
+        # Fallback to rocm-smi command line tool silently
+        import subprocess
+        import re
+        try:
+            result = subprocess.run(['rocm-smi', '--showmeminfo', 'vram'], 
+                                  capture_output=True, text=True, check=True)
+            # Parse output: "VRAM Total Memory (B): 34342961152"
+            matches = re.findall(r'VRAM Total Memory \(B\): (\d+)', result.stdout)
+            if matches:
+                total_bytes = int(matches[0])
+                total_gb = total_bytes / (1024 ** 3)  # Bytes -> GB
+                return total_gb
+            else:
+                print("Could not parse rocm-smi output")
+                return -1
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            print(f"rocm-smi error: {e}")
+            return -1
 
 VRAM_CAP_IN_GB = get_total_memory_from_amdsmi()
 
