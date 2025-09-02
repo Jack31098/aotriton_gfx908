@@ -1,6 +1,38 @@
+# AOTriton MI100 Flash Attention Support
+
+## Project Overview
+
+This project enables PyTorch Scaled Dot-Product Attention (SDPA) Flash Attention support for AMD MI100 GPUs, specifically targeting head dimensions of 32 and 64. It validates the correctness of both forward and backward passes for these configurations.
+
+**Based on AMD's Official AOTriton**: This project is derived from and builds upon [AMD's official AOTriton repository](https://github.com/ROCm/aotriton). All core functionality and architecture credit goes to the original AMD development team.
+
+## Project Goals
+
+- Enable Flash Attention support for AMD MI100 GPUs
+- Validate forward and backward pass correctness for head_dim = 32 and 64
+- Optimize Flash Attention kernels specifically for MI100 architecture
+- Integrate optimized kernels into PyTorch's SDPA implementation
+
+## Implementation Steps
+
+### 1. Minimal AOTriton Compilation
+Build a minimal version of AOTriton to establish the basic compilation pipeline and dependencies.
+
+### 2. PyTorch Integration with AOTriton
+Compile PyTorch with AOTriton linking to enable the Flash Attention backend integration.
+
+### 3. Flash Attention Kernel Tuning for MI100
+Use cpptune to optimize Flash Attention kernels specifically for MI100 architecture characteristics.
+
+### 4. Complete AOTriton Build with MI100 Tuning Data
+Perform a full AOTriton compilation incorporating the MI100-specific tuning parameters.
+
+### 5. PyTorch Dependency Replacement
+Replace PyTorch's AOTriton dependency linking to point to the optimized MI100-specific build.
+
 ## Build Instructions
 
-```
+```bash
 pip install -r requirements.txt
 mkdir build
 cd build
@@ -11,7 +43,7 @@ ninja install/strip  # Use `ninja install` to keep symbols
 ```
 
 The library and the header file can be found under `build/install_dir` afterwards.
-You may ignore the `export PKG_CONFIG_PATH` part if you're not building with conda
+You may ignore the `export PKG_CONFIG_PATH` part if you're not building with conda.
 
 Note: do not run `ninja` separately, due to the limit of the current build
 system, `ninja install` will run the whole build process unconditionally.
@@ -29,7 +61,7 @@ system, `ninja install` will run the whole build process unconditionally.
 * `liblzma`
   - Common names are `liblzma-dev` or `xz-devel`.
 
-## Generation
+## Kernel Generation
 
 The kernel definition for generation is done in
 [rules.py](https://github.com/ROCm/aotriton/blob/main/python/rules.py). Edits
@@ -49,51 +81,8 @@ The archive file and header files are installed in the path specified by
 Currently the first kernel supported is FlashAttention as based on the
 [algorithm from Tri Dao](https://github.com/Dao-AILab/flash-attention).
 
-## PyTorch Consumption & Compatibility
+This project extends support specifically for AMD MI100 GPUs with optimized kernels.
 
-AOTriton is consumed in PyTorch through
-the [SDPA kernels](https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/transformers/hip/flash_attn/aot/mha_all_aot.hip).
-The precompiled binaries will be downloaded and shipped with PyTorch during [builds](https://github.com/pytorch/pytorch/blob/main/cmake/External/aotriton.cmake).
+## Acknowledgments
 
-CAVEAT: As a fast moving target, AOTriton's FlashAttention API changes over
-time. Hence, a specific PyTorch release is only compatible with a few versions
-of AOTriton. The compatibility matrix is shown below
-
-|  PyTorch Upstream     |           AOTriton Feature Release              |
-|-----------------------|-------------------------------------------------|
-|  2.2 and earlier      |               N/A, no support                   |
-|        2.3            |                   0.4b                          |
-|        2.4            |                   0.6b                          |
-|        2.5            |                   0.7b, 0.8b<sup>(1)</sup>      |
-|        2.6            |                   0.8b<sup>(2)</sup>            |
-|        2.7            |    0.9b<sup>(3)</sup>, 0.10b<sup>(4)</sup>      |
-|        2.8            |                  0.10b<sup>(4)</sup>            |
-
-1. 0.8b's API is backward compatible with 0.7b, but the packaging scheme
-   has changed drastically.
-2. PyTorch 2.6 requires some 0.8b-only features. Hence even if PyTorch 2.6
-   can compile with 0.7b due to API compatibility, the end product will
-   suffer from runtime errors.
-3. To be specific, it is shipped with 0.9.2b. 0.9b and 0.9.1b should not be
-   used in order to avoid linking issues, and confusion about version strings.
-4. 0.10b is backward compatible with 0.9b's API. However, PyTorch 2.8 will
-   lose sliding window attention (SWA) support if built with 0.9b since this
-   feature is newly added in 0.10b.
-
-ROCm's PyTorch release/\<version\> branch is slightly different from PyTorch
-upstream and may support more recent version of AOTriton
-
-|  PyTorch ROCm Fork    |           AOTriton Feature Release              |
-|-----------------------|-------------------------------------------------|
-|  2.2 and earlier      |               N/A, no support                   |
-|        2.3            |                   0.4b                          |
-|        2.4            |                   0.7b (backported)             |
-|        2.5            |                   0.8b (backported)             |
-|        2.6            |                   0.9b (backported)             |
-|        2.7            |                   0.9b (backported)             |
-|        2.8            |                   0.10b (once released)         |
-
-### Point Release
-
-AOTriton's point releases maintain ABI compatibility and can be used as drop-in
-replacement of their corresponding feature releases.
+This project is built upon [AMD's official AOTriton repository](https://github.com/ROCm/aotriton). We acknowledge and thank the AMD ROCm team for their foundational work on AOTriton and Flash Attention kernel implementation.

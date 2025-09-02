@@ -89,12 +89,19 @@ class bwd_kernel_fuse(FlashBwdKernel):
         WAVES_PER_EU = [1, 2, 3, 4]
         NUM_WARPS = [2, 4]
         NUM_STAGES = [1]
-        # Narrow search space aggressively for gfx908 to speed up build/tuning
+        # gfx908: curated presets (avoid cross-product), based on gfx90a hotspots
         if arch == 'gfx908':
-            BLOCK_SIZES = [16]
-            WAVES_PER_EU = [2]
-            NUM_WARPS = [4]
-            NUM_STAGES = [1]
+            presets = [
+                # (BLOCK_M, BLOCK_N, waves_per_eu, num_warps, num_stages)
+                (16, 16, 2, 1, 1), (16, 16, 2, 1, 2), (16, 16, 2, 1, 3),
+                (32, 16, 2, 1, 1), (32, 16, 2, 1, 2), (32, 16, 2, 1, 3),
+                (32, 32, 2, 1, 1),
+                (64, 16, 4, 1, 1),
+            ]
+            for (M, N, waves, warps, stages) in presets:
+                kw = {'BLOCK_M': M, 'BLOCK_N': N, 'waves_per_eu': waves}
+                yield Config(kw, num_stages=stages, num_warps=warps)
+            return
         for M, N, waves, warps, stages in itertools.product(BLOCK_SIZES,
                                                             BLOCK_SIZES,
                                                             WAVES_PER_EU,

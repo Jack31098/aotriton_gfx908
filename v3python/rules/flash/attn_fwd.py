@@ -82,16 +82,36 @@ class attn_fwd(FlashKernel):
         ret = []
         CDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'CDNA'
         RDNA = AOTRITON_ARCH_PRODUCTION_LINE[arch] == 'RDNA'
-        # Fast path: drastically narrow gfx908 search space to speed up initial bring-up
+        # gfx908: curated presets (avoid cross-product), derived from gfx90a hotspots
         if arch == 'gfx908':
             # Only head dims typical for 0.6B-sized models (common: 64, sometimes 128)
             if HEAD_DIM not in [64, 128]:
                 return
-            BLOCK_SIZES = [(64, 64), (64, 32)]
-            WAVES_PER_EU = [2]
-            NUM_WARPS = [4]
-            PRE_LOAD_V = [False]
-            NUM_STAGES = [1]
+            presets = [
+                # (BLOCK_M, BLOCK_N, waves_per_eu, num_warps, num_stages)
+                (32, 16, 2, 1, 1), (32, 16, 2, 1, 2),
+                (64, 32, 2, 1, 1), (64, 32, 2, 1, 2),
+                (64, 64, 2, 1, 1), (64, 64, 2, 1, 2),
+            ]
+            if HEAD_DIM == 128:
+                presets += [(128, 64, 4, 1, 1), (128, 64, 4, 1, 2)]
+            for (M, N, waves, warps, stages) in presets:
+                if warps == 1 and M * N >= 64 * 128:
+                    continue  # Timeout
+                if stages == 2 and M * N >= 64 * 32:
+                    continue  # Timeout
+                if M < N:  # Faulty or duplicate
+                    continue
+                persistent_type = 2 if CAUSAL_TYPE != 0 else 0
+                kw = { 'PERSISTENT_TYPE' : persistent_type,
+                       'GRID_CU_MULTIP': 2,
+                       'BLOCK_M': M,
+                       'BLOCK_N': N,
+                       'waves_per_eu': waves,
+                       'PRE_LOAD_V': False,
+                     }
+                yield Config(kw, num_stages=stages, num_warps=warps)
+            return
         elif CDNA:
             BLOCK_SIZES = [(32, 16), (128, 64), (64, 64), (64, 32), (128, 128)]
             WAVES_PER_EU = [1, 2, 3, 4]
