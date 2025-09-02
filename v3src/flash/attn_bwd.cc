@@ -130,10 +130,17 @@ attn_bwd(const attn_bwd_params& in,
   OpAttnBwdContext context;
   context.params = &params;
   err = context.lookup_optimal(gpu);
+#if AOTRITON_VERBOSE
+  std::cerr << "[AOTriton][attn_bwd] lookup_optimal err=" << int(err) << std::endl;
+#endif
   if (err != hipSuccess) {
     return err;
   }
-  return context.launch(gpu, stream);
+  auto launch_err = context.launch(gpu, stream);
+#if AOTRITON_VERBOSE
+  std::cerr << "[AOTriton][attn_bwd] launch err=" << int(launch_err) << std::endl;
+#endif
+  return launch_err;
 }
 
 }

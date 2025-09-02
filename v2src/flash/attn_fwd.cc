@@ -8,10 +8,14 @@
 #include <flash/shim.attn_fwd.h>
 #include <iostream>
 
-#ifdef NDEBUG
-#define AOTRITON_VERBOSE 0
-#else
-#define AOTRITON_VERBOSE 1
+#ifndef AOTRITON_VERBOSE
+#ifndef AOTRITON_VERBOSE
+#  ifdef NDEBUG
+#    define AOTRITON_VERBOSE 0
+#  else
+#    define AOTRITON_VERBOSE 1
+#  endif
+#endif
 #endif
 
 namespace AOTRITON_NS::v2::flash {

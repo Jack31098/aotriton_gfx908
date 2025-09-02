@@ -9,10 +9,12 @@
 #include <flash/iface.op_attn_fwd.h>
 #include <iostream>
 
-#ifdef NDEBUG
-#define AOTRITON_VERBOSE 0
-#else
-#define AOTRITON_VERBOSE 1
+#ifndef AOTRITON_VERBOSE
+#  ifdef NDEBUG
+#    define AOTRITON_VERBOSE 0
+#  else
+#    define AOTRITON_VERBOSE 1
+#  endif
 #endif
 
 namespace AOTRITON_NS::v3::flash {
@@ -134,10 +136,17 @@ attn_fwd(const attn_fwd_params& in,
   OpAttnFwdContext context;
   context.params = &params;
   err = context.lookup_optimal(gpu);
+#if AOTRITON_VERBOSE
+  std::cerr << "[AOTriton][attn_fwd] lookup_optimal err=" << int(err) << std::endl;
+#endif
   if (err != hipSuccess) {
     return err;
   }
-  return context.launch(gpu, stream);
+  auto launch_err = context.launch(gpu, stream);
+#if AOTRITON_VERBOSE
+  std::cerr << "[AOTriton][attn_fwd] launch err=" << int(launch_err) << std::endl;
+#endif
+  return launch_err;
 }
 
 } // AOTRITON_NS::v3::flash

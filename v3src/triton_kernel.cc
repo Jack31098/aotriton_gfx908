@@ -8,10 +8,12 @@
 #include <string>
 #include <mutex>
 
-#ifdef NDEBUG
-#define AOTRITON_KERNEL_VERBOSE 0
-#else
-#define AOTRITON_KERNEL_VERBOSE 1
+#ifndef AOTRITON_KERNEL_VERBOSE
+#  ifdef NDEBUG
+#    define AOTRITON_KERNEL_VERBOSE 0
+#  else
+#    define AOTRITON_KERNEL_VERBOSE 1
+#  endif
 #endif
 
 #define STRINGIFICATION(s) STRINGIFICATION_I(s)
@@ -121,17 +123,43 @@ TritonKernel::invoke(std::string_view kernel_name,
   if (peek_kernel_image)
     return hipSuccess;
 #endif
-  return hipModuleLaunchKernel(func,
-                               grid.x,
-                               grid.y,
-                               grid.z,
-                               essentials_.block.x,
-                               essentials_.block.y,
-                               essentials_.block.z,
-                               essentials_.shared_memory_size,
-                               stream,
-                               args.data(),
-                               0);
+  #if AOTRITON_KERNEL_VERBOSE
+  std::cerr << "hipModuleLaunchKernel grid=(" << grid.x << "," << grid.y << "," << grid.z
+            << ") block=(" << essentials_.block.x << "," << essentials_.block.y << "," << essentials_.block.z
+            << ") shmem=" << essentials_.shared_memory_size << std::endl;
+  #endif
+  // Optional event-based GPU timing and error checks
+  #if AOTRITON_KERNEL_VERBOSE
+  hipEvent_t ev_start = nullptr, ev_stop = nullptr;
+  (void)hipEventCreate(&ev_start);
+  (void)hipEventCreate(&ev_stop);
+  (void)hipEventRecord(ev_start, stream);
+  #endif
+
+  hipError_t launch_ret = hipModuleLaunchKernel(func,
+                                               grid.x,
+                                               grid.y,
+                                               grid.z,
+                                               essentials_.block.x,
+                                               essentials_.block.y,
+                                               essentials_.block.z,
+                                               essentials_.shared_memory_size,
+                                               stream,
+                                               args.data(),
+                                               0);
+  #if AOTRITON_KERNEL_VERBOSE
+  std::cerr << "hipModuleLaunchKernel returned " << int(launch_ret) << std::endl;
+  auto post_err = hipGetLastError();
+  std::cerr << "hipGetLastError after launch = " << int(post_err) << std::endl;
+  (void)hipEventRecord(ev_stop, stream);
+  (void)hipEventSynchronize(ev_stop);
+  float elapsed_ms = 0.0f;
+  (void)hipEventElapsedTime(&elapsed_ms, ev_start, ev_stop);
+  std::cerr << "kernel elapsed_ms(by HIP events) = " << elapsed_ms << std::endl;
+  (void)hipEventDestroy(ev_start);
+  (void)hipEventDestroy(ev_stop);
+  #endif
+  return launch_ret;
 }
 
 hipFunction_t

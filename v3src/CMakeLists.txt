@@ -198,6 +198,9 @@ else(AOTRITON_BUILD_FOR_TUNING)
 endif(AOTRITON_BUILD_FOR_TUNING)
 target_link_libraries(aotriton_v2 PRIVATE lzma_interface)
 target_link_libraries(aotriton_v2 PUBLIC hip::host hip::amdhip64)
+# Force verbose logs even in Release if desired
+target_compile_definitions(aotriton_v2 PRIVATE AOTRITON_VERBOSE=0)
+target_compile_definitions(aotriton_v2 PRIVATE AOTRITON_KERNEL_VERBOSE=0)
 set_target_properties(aotriton_v2 PROPERTIES VERSION
   ${AOTRITON_VERSION_MAJOR_INT}.${AOTRITON_VERSION_MINOR_INT}.${AOTRITON_VERSION_PATCH_INT})
 
